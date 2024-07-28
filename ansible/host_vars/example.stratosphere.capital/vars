@@ -1,0 +1,23 @@
+# delete the coments in production files
+# has to be the short hostname
+server: example
+# has to be the fully qualified name
+hostname: example.stratosphere.capital
+# can be amazon or debian
+distribution: amazon
+# can be production or staging
+security: production
+
+services:
+  # all the services defined below must be included in this list
+  - gptbot
+  - trad0r_time_ripper
+
+service:
+  - image: gptbot
+    entrypoint: nice -n -15 ./bin/gptbot
+    params: -v /srv/key:/srv/key:ro
+
+  - image: trad0r
+    entrypoint: nice -n -15 ./bin/trad0r /cfg/time_ripper.toml
+    params: -v /srv/key:/srv/key:ro

@@ -1,0 +1,12 @@
+---
+    - name: reload systemd
+      systemd:
+          daemon_reload: yes
+
+    - name: restart systemd service
+      loop: "{{ systemd_service.results | selectattr('changed', 'equalto', true) | map(attribute='item') | list }}"
+      service:
+          name: "{{ item.image | replace('-', '_') }}{{ item.flavor | default }}"
+          enabled: yes
+          state: restarted
+          daemon_reload: yes

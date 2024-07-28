@@ -1,0 +1,263 @@
+#!/bin/bash
+
+set -e
+declare -a FILES_TO_CLEAN
+
+print_help () {
+    echo >&2 "Usage: strt-deploy [-f] [-m MESSAGE] SERVICE [BRANCH]"
+    echo >&2
+    echo >&2 "Deploys a SERVICE from BRANCH or main if not specified"
+    echo >&2 "optionally recording a changelog message"
+    echo >&2
+    if [[ -d /srv/run/ansible-managed-services/current ]]
+    then
+        echo >&2 "Deployable services:"
+        ls >&2 -1 /srv/run/ansible-managed-services/current
+    fi
+}
+
+service_exists() {
+    local n=$1
+    if [[ $(systemctl list-units --all -t service --full --no-legend "$n.service" | sed 's/^\s*//g' | cut -f1 -d' ') == $n.service ]]
+    then
+        return 0
+    else
+        return 1
+    fi
+}
+
+restart_handler() {
+    local service=$1
+    if [ "$first_deploy" = true ]
+    then
+        echo "First deploy not restarting $service"
+    else
+        echo "Restarting $service ..."
+        systemctl stop $service
+        systemctl start $service
+        sleep 3
+        rm -f /srv/run/$service/*
+    fi
+}
+
+cleanup(){
+    for dir in "${FILES_TO_CLEAN[@]}"
+    do
+        rm -rf "$dir"
+    done
+    rm -f "$LOCKFILE"
+}
+
+git_get_head () {
+    (
+        if ! [[ -d "$1" ]]
+        then
+            echo "none"
+            return 0
+        fi
+        cd "$1"
+        git rev-parse HEAD
+    )
+}
+
+git_clone_branch(){
+    (
+        set -e
+        repo=$1
+        branch=$2
+        name=$3
+
+        [ -d "$APP_ROOT" ] || mkdir -p "$APP_ROOT"
+
+        cd "$APP_ROOT"
+        [ -d "$name" ] || git clone "$repo" "$name"
+
+        cd "$name"
+        for i in `git ls-remote --heads origin | awk '{print $2}'`
+        do
+            if [[ ${i#refs/heads/} == $branch ]]
+            then
+                git clean -f
+                git fetch
+                git checkout -f "origin/$branch"
+                break
+            fi
+        done
+    )
+}
+
+tag_image(){
+    local image=$1
+    local name=$2
+    docker tag "$image" "$name:latest"
+    docker tag "$image" "$name:${PUB_HEAD:$#-4}-$SIMPLETIMESTAMP"
+}
+
+make_hookbot(){
+    local tmpdir="$(mktemp -d)"
+    FILES_TO_CLEAN+=("$tmpdir")
+    (
+        cd "$tmpdir"
+        git clone https://github.com/sensiblecodeio/hookbot.git
+        cd hookbot
+        docker build -t hookbot .
+    )
+}
+
+make_image(){
+    local project=$1
+    case "$project" in
+        hookbot)
+            make_hookbot
+            ;;
+        *)
+            make -C "$project" image
+            ;;
+    esac
+}
+
+deploy_service(){
+    local service=$1
+    local project=$2
+    make_image "$project"
+    tag_image "${project##*/}" "${service//_/-}"
+    restart_handler "$service"
+}
+
+main_deploy(){
+    shopt -s extglob
+    case "$service" in
+        docs)
+            cd $APP_ROOT/pub/docs && make image
+            docker run -it --rm -v /srv/www/docs:/srv/www/docs docs make docs-install
+            ;;
+
+        *-report | *-cronjob)
+            make_image $APP_ROOT/pub/"$service"
+            tag_image "$service" "$service"
+            ;;
+
+        *)
+            deploy_service "$service" "$APP_ROOT/pub/${service//_/-}"
+            ;;
+    esac
+    shopt -u extglob
+
+    mkdir -p /srv/log/${hostname}/deploy
+    logdate=`date +%Y%m%d`
+    date +"[%Y-%m-%d %H:%M:%S] Successfully deployed ${service} at ${hostname} - $desc_message # {\"branch\":\"$branch\",\"pub\":\"$PUB_HEAD\"}" >> /srv/log/${hostname}/deploy/${logdate}.log
+}
+
+while [[ $# -gt 0 ]]
+do
+    case "$1" in
+        -m|--message)
+            shift 1
+            desc_message="$2"
+            if [[ $desc_message ]]
+            then
+                shift 1
+            else
+                read -p "Enter changelog message: " desc_message
+            fi
+            ;;
+        -f|--force)
+            opt_force=1
+            shift 1
+            ;;
+        -h|--help)
+            print_help
+            exit 0
+            ;;
+        -*)
+            echo >&2 "no such option: $1"
+            exit 1
+            ;;
+        *)
+            if [[ $branch ]]
+            then
+                echo >&2 "can not specify multiple branches"
+                exit 1
+            elif [[ $service ]]
+            then
+                branch="${1:-main}"
+            else
+                service="$1"
+            fi
+            shift 1
+            ;;
+    esac
+done
+
+if ! [[ $service ]]
+then
+    echo >&2 "provide the service to deplpoy"
+    exit 1
+fi
+
+: ${branch:=main}
+
+if [[ $opt_force ]]
+then
+    echo "Running in non-interactive mode."
+fi
+
+
+LOCKFILE="/tmp/deploy.lock"
+if [ -f $LOCKFILE ]
+then
+    limit=400
+    ts_now=`date +%s`
+    filemtime=`stat -c %Y -- "$LOCKFILE"`
+    diff=$(($ts_now - $filemtime))
+    if [ "$diff" -gt "$limit" ]
+    then
+        echo "WARNING: Lockfile limit expired. Deploy contiue."
+        touch "$LOCKFILE"
+    else
+        echo "Deploy or revert already running. Wait or check $LOCKFILE"
+        exit 2
+    fi
+else
+    touch "$LOCKFILE"
+fi
+
+trap cleanup EXIT SIGINT SIGTERM
+
+SIMPLETIMESTAMP=`date +"%d%H%M%S"`
+hostname=`hostname`
+logdate=`date +"%Y-%m-%d %H:%M:%S"`
+APP_ROOT="/srv/app"
+
+echo "Deploying $service from branch: $branch"
+git_clone_branch git@github.com:Stratosphere-Capital/pub $branch pub
+
+PUB_HEAD="$(git_get_head $APP_ROOT/pub)"
+
+export TMPDIR=/srv/tmp
+
+if [[ $service == *report ]] \
+   || [[ $service == *cronjob ]] \
+   || [[ $service == docs ]] \
+   || service_exists $service
+then
+    first_deploy=false
+else
+    if [[ $opt_force ]]
+    then
+        first_deploy=true
+    else
+        read -p "Service does not exist. Do you want to continue (first deploy)? (Y/N) " -n 1 -r
+        echo    ""
+        if [[ $REPLY =~ ^[Yy]$ ]]
+        then
+            first_deploy=true
+            echo "Stopping service to be sure as this is the first deploy"
+            systemctl stop $service || true
+        else
+            echo "Exit."
+            exit
+        fi
+    fi
+fi
+main_deploy

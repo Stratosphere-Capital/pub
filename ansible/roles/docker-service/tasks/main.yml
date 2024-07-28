@@ -1,0 +1,14 @@
+---
+    - name: Install systemd unit file
+      loop: '{{ service }}'
+      template:
+          src: service.j2
+          dest: "{% if 'name' in item %}/etc/systemd/system/{{ item.name }}.service{% else %}/etc/systemd/system/{{ item.image | replace('-', '_') }}{{\
+              \ item.flavor | default }}.service{% endif %}"
+          owner: root
+          group: root
+      register: systemd_service
+      notify:
+          - reload systemd
+          - restart systemd service
+      when: service is iterable

@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# remove inactivated still running services
+
+cd /srv/run/ansible-managed-services/active
+for service in `ls -1`
+do
+    if ! [[ -e ../current/$service ]]
+    then
+	echo "auto-removing service $service"
+	disable-service "$service"
+    fi
+done

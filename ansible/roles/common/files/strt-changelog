@@ -1,0 +1,14 @@
+#!/bin/bash
+
+hostname=`hostname`
+service=$1
+instance=$2
+message=$3
+commit=$4
+
+if [ -f /usr/bin/psql ] && [ -f /root/.pgpass ]
+then
+    export PGPASSFILE='/root/.pgpass' ; sudo psql -p 5432 -d  dashboard -U changelog -h localhost <<< "INSERT INTO changelog (server, service, instance, timestamp, commit, description) VALUES ('$hostname', '$service', '$instance', '$logdate', '$commit', '$message');"
+else
+    echo >&2 "can not write to changelog: psql not installed"
+fi

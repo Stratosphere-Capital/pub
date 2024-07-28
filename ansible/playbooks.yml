@@ -1,0 +1,11 @@
+---
+    - hosts: tok2.stratosphere.capital
+      any_errors_fatal: true
+      max_fail_percentage: 0
+      gather_facts: yes
+      roles:
+          - {role: common, tags: [common]}
+          - {role: sync-pubkeys, tags: [sync-pubkeys]}
+          - {role: docker-service, tags: [docker-service]}
+          - {role: docker-cron, tags: [docker-cron]}
+          - {role: rsyslog, tags: [rsyslog]}

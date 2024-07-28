@@ -1,0 +1,138 @@
+#!/bin/bash
+
+security={{ security }}
+{% if debug %}set -x
+{% endif %}set -e
+
+HOSTNAME=`hostname`
+SSH_IDENT=${SSH_CLIENT% *}
+LOGDIR=/srv/log/$HOSTNAME
+mkdir -p $LOGDIR
+LOGFILE=$LOGDIR/stctl
+
+help(){
+    echo >&2 "stct - Stratosphere control script set up for {{ hostname }}."
+    echo >&2
+    echo >&2 "Usage: stctl COMMAND"
+    echo >&2
+    echo >&2 "where COMMAND is one of"
+    echo >&2
+    echo >&2 "  provision         runs ansible-local to provision changes to server configuration"
+    echo >&2 "  deploy [SERVICE]  deploys a previously provisioned service using strt-deploy"
+    echo >&2 "  status [SERVICE]  queries status of SERVICE or of all services"
+    echo >&2 "  stop SERVICE      stops SERVICE through systemctl"
+    echo >&2 "  restart SERVICE   restarts SERVICE through systemctl"
+    echo >&2 "  start SERVICE     starts SERVICE through systemctl"
+    echo >&2 "  enable SERVICE    enables SERVICE to be started on reboot"
+    echo >&2 "  disable SERVICE   disables SERVICE not to be started on reboot"
+    echo >&2 "  cat FILE          allows to cat a FILE"
+    echo >&2 "  tail FILE         allows to tail a FILE"
+    echo >&2 "  upload-key FILE   writes the key from standard input into /srv/key/FILE"
+    echo >&2 "  setup-google-auth setup google 2-FA for your ssh login"
+    echo >&2 "  help              shows this help"
+}
+
+log(){
+    echo >>$LOGFILE "`date +"%b %d %y %H:%M:%S"`" "$HOSTNAME $USER $SSH_IDENT stctl[$$]:" "$@"
+}
+
+error(){
+    echo >&2 "$@"
+    log error: "$@"
+}
+
+main(){
+    if [[ $1 != 'stctl' ]]
+    then
+        echo >&2 "only allowed to call 'stctl'"
+        exit 1
+    fi
+
+    if ! [[ $1 ]]
+    then
+        echo >&2 "no command supplied"
+        exit 1
+    fi
+
+    shift
+
+    log "$@"
+
+    case "$1" in
+        provision)
+            if [[ $security == staging ]]
+            then
+                sudo /usr/local/sbin/ansible-local "$@"
+            else
+                sudo /usr/local/sbin/ansible-local
+            fi
+            ;;
+        deploy)
+            if [[ $security == staging ]]
+            then
+                shift
+                sudo /usr/local/sbin/strt-deploy "$@"
+            else
+                sudo /usr/local/sbin/strt-deploy "$2"
+            fi
+            ;;
+        status|start|stop|restart|enable|disable)
+            if [[ $2 ]]
+            then
+                sudo systemctl "$1" "$2"
+            else
+                sudo systemctl "$1"
+            fi
+            ;;
+        upload-key)
+            if ! [[ $2 ]]
+            then
+                error "specify the key file to upload key into"
+                exit 1
+            fi
+            keyfile="/srv/key/$2"
+            regex="^/srv/key/[a-zA-Z0-9]+[.][a-zA-Z0-9]+$"
+            if [[ $keyfile =~ $regex ]]
+            then
+               sudo /usr/bin/dd of="$keyfile"
+               sudo /usr/bin/chmod 400 "$keyfile"
+            else
+                error "writing file not allowed: '$keyfile'"
+            fi
+            ;;
+        setup-google-auth)
+            google-authenticator --time-based --disallow-reuse --window-size=3 --force --rate-limit=3 --rate-time=30
+            ;;
+        cat|tail)
+            regex="^(cat|tail( -f)?( -n[0-9]+)?) /(srv|var)/(log|run)/[^(..)]*$"
+            pubkey="^cat /(root|home/[a-zA-Z0-9]+)/[.]ssh/id_(rsa|ed25519).pub$"
+            if [[ $* =~ $regex ]]
+            then
+                "$@"
+            elif [[ $* =~ $pubkey ]]
+            then
+                shift
+                sudo /usr/bin/cat "$@"
+            else
+                error "command not allowed: '$*'"
+            fi
+            ;;
+        help)
+            help
+            ;;
+        *)
+            error "unknown command: '$*'"
+            exit 1
+            ;;
+    esac
+
+    log success
+}
+
+if [[ $SSH_ORIGINAL_COMMAND ]]
+then
+    read -ra cmd <<<"$SSH_ORIGINAL_COMMAND"
+    main "${cmd[@]}"
+else
+    main stctl "$@"
+fi

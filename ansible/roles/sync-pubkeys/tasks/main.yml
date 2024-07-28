@@ -1,0 +1,30 @@
+---
+    - name: create sync-rsync user
+      user:
+          name: sync-rsync
+          shell: /bin/bash
+          groups:
+              - adm
+          state: present
+
+    - name: setup sync-rsync home
+      file:
+          path: /home/sync-rsync/bin
+          owner: sync-rsync
+          group: sync-rsync
+          mode: '0555'
+          state: directory
+
+    - name: setup rrsync script
+      copy:
+          src: files/rrsync
+          dest: /home/sync-rsync/bin/rrsync
+          mode: '0555'
+
+    - name: add sync-rsync keys
+      authorized_key:
+          user: sync-rsync
+          key: "{{lookup('file', 'pubkeys/' + item + '.pub')}}"
+          state: present
+          key_options: restrict,command="/home/sync-rsync/bin/rrsync -ro /srv"
+      with_items: '{{sync_pubkeys}}'

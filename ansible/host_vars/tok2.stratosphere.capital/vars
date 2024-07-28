@@ -1,0 +1,16 @@
+server: tok2
+hostname: tok2.stratosphere.capital
+
+services:
+  - data_collector
+
+users:
+  - onvos
+  - nkaz
+  - daveeed
+  - martin
+
+service:
+  - image: data-collector
+    entrypoint: exec nice -n -15 ./bin/main
+    params: '-v /srv/data:/srv/data -v /srv/run:/srv/run'

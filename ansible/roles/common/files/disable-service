@@ -1,0 +1,36 @@
+#!/bin/bash
+
+
+if [ "$#" -ne 1 ]; then
+	echo "Bad number of arguments!"
+	exit 1
+fi
+
+service="${1%.service}"
+LOCKFILE="/tmp/strt-deploy.lock"
+
+function cleanup(){
+    echo "Removing lockfile."
+    rm -f $LOCKFILE
+}
+
+if [ -f $LOCKFILE ]; then
+	echo "Deploy or revert already running. Wait or check $LOCKFILE"
+	exit 2
+else
+	touch $LOCKFILE
+fi
+
+trap cleanup EXIT
+
+systemctl stop "$1"
+systemctl disable "$1"
+rm -f "/etc/systemd/system/${1}.service"
+
+systemctl daemon-reload
+systemctl reset-failed
+
+docker rm -f "$service"
+sleep 3
+rm -rf "/srv/run/$1"
+rm "/srv/run/ansible-managed-services/active/$1"

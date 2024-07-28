@@ -1,0 +1,22 @@
+---
+    - name: Create docker-cron log dirs
+      file:
+          path: /srv/log/{{ server }}/{{ item.image | replace('-', '_') }}
+          state: directory
+          mode: '0755'
+      loop: '{{ cron }}'
+      when: cron is iterable
+
+    - name: Install docker cron job
+      cron:
+          name: docker-cron {{ item.image | replace('-', '_') }}
+          weekday: '{{ item.weekday | default("*") }}'
+          hour: '{{ item.hour | default("*") }}'
+          minute: '{{ item.minute }}'
+          job: /usr/bin/docker run -i --rm --name {{ item.image | replace('-', '_') }}.cronjob -v /srv/spool/{{ item.image | replace('-', '_') }}:/srv/spool/{{
+              item.image | replace('-', '_') }} -v /srv/run/{{ item.image | replace('-', '_') }}:/srv/run/{{ item.image | replace('-', '_') }} --cap-add=sys_nice
+              {{ item.params | default }} {{ item.image }}{{ item.flavor | default | replace('_', '-') }} {% if 'cmd' in item %}{{ item.cmd }}{% else %}bash
+              -c "exec {{ item.entrypoint | default('python3 -m main') }} /cfg/{{server}}/{{ item.image | replace('-', '_') }}.toml {{ item.args | default
+              }}{% endif %}" >> /srv/log/`hostname`/{{ item.image | replace('-', '_') }}/`date +"\%Y\%m\%d.log"` 2>&1
+      loop: '{{ cron }}'
+      when: cron is iterable

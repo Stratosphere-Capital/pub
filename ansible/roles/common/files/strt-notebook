@@ -1,0 +1,3 @@
+#!/bin/bash
+
+exec sudo docker run -it -d --rm --name $USER --user $(id -u):$(id -g) --network=host --group-add users -v /srv/server:/srv/server:ro -v /srv/app/core/lib/py/src:/srv/app/core/lib/py/src:ro -v /home:/home/jovyan/work -v /srv/log:/srv/log:ro -v /srv/data:/srv/data:ro jupyter/datascience-notebook jupyter-notebook --ip=127.0.0.1

@@ -1,0 +1,21 @@
+#!/bin/bash
+
+set -e
+
+branch=${1:-main}
+[[ $1 ]] && shift
+
+cd /root
+
+[ -d app ] || mkdir app
+cd app
+
+[ -a pub ] || git clone git@github.com:Stratosphere-Capital/pub.git pub
+cd pub
+cd ansible
+
+git fetch --all
+git checkout -f "origin/$branch"
+git clean -f
+
+ansible-playbook -i hosts_local playbooks.yml -l {{ inventory_hostname }} --skip-tags passwords --diff -v -e ansible_python_interpreter=/usr/bin/python3 "$@"

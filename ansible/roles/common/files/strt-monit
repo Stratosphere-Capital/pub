@@ -1,0 +1,133 @@
+#!/bin/bash
+
+set -e
+
+PAGERDUTY_TOKEN=XXXXX
+HEARTBEAT_TIMEOUT=300
+ME=strt-monit
+HERE=`hostname`
+RUNDIR=/srv/run
+PAGERDUTY_SERVICES=
+
+now=`date +%s`
+
+is_pagerduty_enabled(){
+    [[ $opt_dry && -z $opt_force ]] && return 1
+    local service="$1"
+    for entry in $PAGERDUTY_SERVICES
+    do
+        [[ $service == $entry ]] && return 0
+    done
+    return 1
+}
+
+notify_pagerduty(){
+    local message="$*"
+    local key="$ME:$now"
+    wget -q \
+         --method POST \
+         --header 'Content-Type: application/json' \
+         --header 'Accept: application/json' \
+         --body-data "{\"payload\":{\"summary\":\"$message\",\"severity\":\"critical\",\"source\":\"$ME@$HERE\"},\"routing_key\":\"$PAGERDUTY_TOKEN\",\"event_action\":\"trigger\",\"dedup_key\":\"$key\"}" \
+         -O /dev/null \
+         https://events.pagerduty.com/v2/enqueue
+    sleep 10
+    wget -q \
+         --method POST \
+         --header 'Content-Type: application/json' \
+         --header 'Accept: application/json' \
+         --body-data "{\"routing_key\":\"$PAGERDUTY_TOKEN\",\"event_action\":\"acknowledge\",\"dedup_key\":\"$key\"}" \
+         -O /dev/null \
+         https://events.pagerduty.com/v2/enqueue
+}
+
+check_service(){
+    local restart
+    local service=$1
+    local service_rundir="$RUNDIR/$service"
+    for filename in "$service_rundir"/*
+    do
+        [[ -f $filename ]] || continue
+	filemtime=`stat -c %Y -- "$filename"`
+	diff=$((now - filemtime))
+	if [[ -f "$RUNDIR/$ME/$service" ]]
+	then
+	    lastrestartmtime=`stat -c %Y "$RUNDIR/$ME/$service"`
+	    diff2=$((now - lastrestartmtime))
+	    if [ "$diff" -gt "$diff2" ]
+	    then
+		diff=$diff2
+	    fi
+	fi
+	if [ "$diff" -gt "$HEARTBEAT_TIMEOUT" ]
+	then
+            [[ $opt_dry ]] || rm -f "$filename"
+	    if [[ $opt_force || -f /etc/systemd/system/${service}.service ]]
+	    then
+		restart=1
+	    fi
+	    date +"%b %d, %Y %H:%M:%S $ME: $filename is too old, mtime is $filemtime # {\"service\":\"$service\",\"file\":\"$filename\",\"mtime\":$filemtime}"
+	fi
+    done
+
+    if [[ $restart ]]
+    then
+        if [[ -z $opt_dry ]]
+        then
+	    date +"%b %d, %Y %H:%M:%S $ME: restarting $service"
+            if hash systemctl 2>/dev/null
+            then
+	        timeout 60 systemctl restart "$service"
+            fi
+	    touch "$RUNDIR/$ME/$service"
+        else
+	    date +"%b %d, %Y %H:%M:%S $ME: marking $service unhealthy"
+        fi
+        if is_pagerduty_enabled "$service"
+        then
+            notify_pagerduty "FAILED $service; restarting"
+        fi
+        return 1
+    fi
+
+    return 0
+}
+
+main(){
+    local restarted
+
+    if [ $# -gt 0 ]
+    then
+        opt_force=1
+        for service
+        do
+            if ! check_service "$service"
+            then
+                restarted=1
+            fi
+        done
+    else
+        for service in `cd "$RUNDIR"; find . -mindepth 1 -maxdepth 1 -not -empty -type d`
+        do
+            if ! check_service "${service#./}"
+            then
+                restarted=1
+            fi
+        done
+    fi
+
+    if [[ $restarted ]]
+    then
+        exit 1
+    else
+        exit 0
+    fi
+}
+
+if [[ $1 == -n ]]
+then
+    opt_dry=1
+    shift
+fi
+
+main "$@"

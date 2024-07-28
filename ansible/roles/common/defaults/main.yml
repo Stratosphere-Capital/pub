@@ -1,0 +1,51 @@
+---
+distribution: amazon
+security: staging
+
+users:
+    - martin
+
+production_users:
+    - onvos
+    - daveeed
+
+absent_users:
+    - admin
+    - ec2-user
+
+basic_packages:
+    - sudo
+    - git
+    - vim
+    - htop
+    - tree
+    - tmux
+    - make
+    - rsync
+    - ansible
+    - postfix
+    - mutt
+    - python3
+    - m4
+    - chrony
+    - qrencode
+    - zsh
+
+basic_debian_packages:
+    - docker.io
+    - postgresql-client
+    - curl
+    - cron
+    - libpam-google-authenticator
+    - hping3
+    - iptables-persistent
+
+basic_amazon_packages:
+    - docker
+    - postgresql15
+    - curl-minimal
+    - cronie
+    - google-authenticator
+    - iptables-services
+
+etc_hosts: []

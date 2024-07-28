@@ -1,0 +1,64 @@
+---
+default_language_version:
+    python: python3
+
+repos:
+
+    - repo: https://github.com/pre-commit/pre-commit-hooks
+      rev: v4.4.0
+      hooks:
+          - id: check-json
+          - id: check-yaml
+          - id: check-toml
+          - id: check-symlinks
+          - id: trailing-whitespace
+          - id: mixed-line-ending
+            args: [--fix=lf]
+
+    - repo: https://github.com/ambv/black
+      rev: 23.3.0
+      hooks:
+          - id: black
+            args: [--line-length=100, --skip-string-normalization, --exclude='proto/']
+
+    - repo: https://github.com/pycqa/autoflake
+      rev: v2.3.1
+      hooks:
+          - id: autoflake
+            exclude: proto/
+            args:
+                - --in-place
+                - --expand-star-imports
+                - --remove-all-unused-imports
+                - --ignore-init-module-imports
+
+    - repo: https://github.com/pycqa/flake8
+      rev: 6.0.0
+      hooks:
+          - id: flake8
+            exclude: proto/
+            args: [--max-line-length=100, '--ignore=E203,W503']
+
+    - repo: https://github.com/kynan/nbstripout
+      rev: 0.6.1
+      hooks:
+          - id: nbstripout
+
+    - repo: https://github.com/doublify/pre-commit-rust
+      rev: v1.0
+      hooks:
+          - id: fmt
+            args: [--manifest-path=lib/py/ruws/Cargo.toml, --]
+          - id: clippy
+            args: [--manifest-path=lib/py/ruws/Cargo.toml, --]
+
+    - repo: https://github.com/jumanjihouse/pre-commit-hook-yamlfmt
+      rev: 0.2.3
+      hooks:
+          - id: yamlfmt
+
+    - repo: https://github.com/asottile/reorder_python_imports
+      rev: v3.10.0
+      hooks:
+          - id: reorder-python-imports
+            files: (\.pyi?|wscript)$

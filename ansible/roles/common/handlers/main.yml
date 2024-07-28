@@ -1,0 +1,16 @@
+---
+    - name: restart sshd
+      systemd:
+          name: sshd
+          state: restarted
+          daemon_reload: yes
+
+    - name: restart postfix
+      systemd:
+          name: postfix
+          state: restarted
+          daemon_reload: yes
+
+    - name: ansible finalize
+      command:
+          cmd: /usr/local/sbin/ansible-finalize

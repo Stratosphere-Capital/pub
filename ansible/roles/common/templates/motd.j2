@@ -1,0 +1,27 @@
+
+  {{ server }}
+==========
+Set-up through Ansible https://github.com/Stratosphere-Caputal/pub/tree/main/ansible.
+
+Deploying and reverting services:
+"sudo strt-deploy <service>"
+"sudo disable-service <service>"
+
+Logs: /srv/log/<service>
+
+Heartbeats: /srv/run/<service>
+
+List all systemd services: "systemctl list-units --type=service"
+
+services runing at this server
+------------------------------
+{% if services is defined %}
+{% for service in services %}
+  - {{ service }}
+{% endfor %}
+{% endif %}
+
+jobs
+----
+strt-monit cron (crontab -l), log: /var/log/strt-monit.log
+

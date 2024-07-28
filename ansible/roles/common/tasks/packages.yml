@@ -1,0 +1,49 @@
+---
+    - name: install basic packages
+      package:
+          name:
+              - '{{item}}'
+          state: latest
+      with_items: '{{basic_packages}}'
+
+    - name: install basic debian packages
+      package:
+          name:
+              - '{{item}}'
+          state: latest
+      with_items: '{{basic_debian_packages}}'
+      when: distribution == 'debian'
+
+    - name: install basic amazon packages
+      package:
+          name:
+              - '{{item}}'
+          state: latest
+      with_items: '{{basic_amazon_packages}}'
+      when: distribution == 'amazon'
+
+    - name: update packages on amazon linux
+      yum:
+          name: '*'
+          state: latest
+          update_cache: yes
+          update_only: yes
+      when: distribution == 'amazon'
+
+    - name: remove packages not needed anymore on amazon linux
+      yum:
+          autoremove: yes
+      when: distribution == 'amazon'
+
+    - name: update all installed packages on debian
+      apt:
+          name: '*'
+          state: latest
+          update_cache: yes
+          only_upgrade: yes
+      when: distribution == 'debian'
+
+    - name: remove packages not needed anymore on debian
+      apt:
+          autoremove: yes
+      when: distribution == 'debian'

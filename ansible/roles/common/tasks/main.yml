@@ -1,0 +1,300 @@
+---
+    - name: set timezone to UTC
+      timezone:
+          name: UTC
+
+    - name: include packages
+      import_tasks: packages.yml
+      tags:
+          - packages
+
+    - name: install sbin scripts
+      copy:
+          dest: /usr/local/sbin/{{ item }}
+          src: '{{ item }}'
+          owner: root
+          group: root
+          mode: '0755'
+      with_items:
+          - strt-monit
+          - disable-service
+          - strt-deploy
+          - strt-changelog
+      tags:
+          - scripts
+
+    - name: install sbin scripts from templates
+      template:
+          dest: /usr/local/sbin/{{ item }}
+          src: '{{ item }}.j2'
+          owner: root
+          group: root
+          mode: '0755'
+      with_items:
+          - ansible-local
+          - ansible-finalize
+      tags:
+          - scripts
+
+    - name: install bin scripts from templates
+      template:
+          dest: /usr/local/bin/{{ item }}
+          src: '{{ item }}.j2'
+          owner: root
+          group: root
+          mode: '0755'
+      vars:
+          debug: false
+      with_items:
+          - stctl
+      tags:
+          - scripts
+
+    - name: /root/.pgpass file
+      copy:
+          dest: /root/.pgpass
+          src: pgpass
+          owner: root
+          group: root
+          mode: '0600'
+      tags:
+          - passwords
+
+    - name: create staging user accounts
+      user:
+          name: '{{item}}'
+          shell: /bin/bash
+          groups: [adm, "{% if distribution == 'debian' %}sudo{% else %}wheel{% endif %}"]
+          password: "{{ 'filomenauspala' | password_hash('sha512') }}"
+          update_password: on_create
+          state: present
+      with_items: '{{ production_users + users }}'
+      when: security == 'staging'
+
+    - name: add authorized keys for staging users
+      authorized_key:
+          user: '{{item}}'
+          key: "{{lookup('file', 'pubkeys/' + item + '.pub')}}"
+          state: present
+          exclusive: true
+      with_items: '{{ production_users + users }}'
+      when: security == 'staging'
+
+    - name: create production user accounts
+      user:
+          name: '{{item}}'
+          shell: /bin/bash
+          groups: [adm]
+          password_lock: yes
+          state: present
+      with_items: '{{ production_users }}'
+      when: security == 'production'
+
+    - name: add authorized keys for production users
+      authorized_key:
+          user: '{{item}}'
+          key: "{{lookup('file', 'pubkeys/' + item + '.pub')}}"
+          key_options: restrict,pty,agent-forwarding,command="/usr/local/bin/stctl"
+          state: present
+          exclusive: true
+      with_items: '{{ production_users }}'
+      when: security == 'production'
+
+    - name: setup sshd_config
+      template:
+          src: sshd_config.j2
+          dest: /etc/ssh/sshd_config
+      notify:
+          - restart sshd
+
+    - name: setup pam.d google_auth
+      blockinfile:
+          path: /etc/pam.d/sshd
+          insertafter: ^#%PAM-
+          block: |
+              auth      [success=done ignore=1] pam_google_authenticator.so nullok
+              auth      requisite  pam_deny.so
+              auth      sufficient  pam_permit.so
+      when: security == 'production'
+
+    - name: include zsh
+      import_tasks: zsh.yml
+      when: security == 'staging'
+      tags:
+          - zsh
+
+    - name: remove user accounts
+      user:
+          name: '{{item}}'
+          state: absent
+          remove: yes
+      with_items: '{{absent_users}}'
+
+    - name: remove staging user accounts on production
+      user:
+          name: '{{item}}'
+          state: absent
+          remove: yes
+      with_items: '{{ users }}'
+      when: security == 'production'
+
+    - name: allow to pass ssh-agent through sudo
+      copy:
+          dest: /etc/sudoers.d/80-bootstrap-defaults
+          owner: root
+          group: root
+          mode: 644
+          content: |
+              Defaults env_keep += SSH_AUTH_SOCK
+
+    - name: install IPv4 firewall rules
+      copy:
+          dest: "{% if distribution == 'debian' %}/etc/iptables/rules.v4{% elif distribution == 'amazon' %}/etc/sysconfig/iptables{% endif %}"
+          owner: root
+          group: root
+          mode: 644
+          content: '{{ firewall_rules_v4 }}'
+      when: firewall_rules_v4 is defined
+
+    - name: install IPv6 firewall rules
+      copy:
+          dest: "{% if distribution == 'debian' %}/etc/iptables/rules.v6{% elif distribution == 'amazon' %}/etc/sysconfig/ip6tables{% endif %}"
+          owner: root
+          group: root
+          mode: 644
+          content: '{{ firewall_rules_v6 }}'
+      when: firewall_rules_v6 is defined
+
+    - name: add global known_hosts
+      copy:
+        src: known_hosts
+        dest: /etc/ssh/ssh_known_hosts
+        owner: root
+        group: root
+        mode: 644
+
+    - name: include mta
+      import_tasks: mta.yml
+      notify:
+          - restart postfix
+      tags:
+          - mta
+
+    - name: add user profile for staging users
+      copy:
+          dest: /home/{{item}}/.profile
+          src: profile
+          owner: '{{item}}'
+          group: '{{item}}'
+          mode: '0644'
+      with_items: '{{ users }}'
+      when: security == 'staging'
+
+    - name: add user profile for production users
+      copy:
+          dest: /home/{{item}}/.profile
+          src: profile
+          owner: '{{item}}'
+          group: '{{item}}'
+          mode: '0644'
+      with_items: '{{ production_users }}'
+      when: security == 'production'
+
+    - name: ensure /srv/app exists
+      file:
+          path: /srv/app
+          state: directory
+          mode: '0755'
+
+    - name: ensure /srv/key exists
+      file:
+          path: /srv/key
+          state: directory
+          mode: '0700'
+
+    - name: make standard directories
+      file:
+          path: /srv/{{ item }}
+          owner: root
+          group: root
+          mode: '0755'
+          state: directory
+      loop:
+          - log
+          - data
+          - bck
+          - spool
+          - run
+
+    - name: ensure /srv/log/{{ server }}/strt-monit exists
+      file:
+          path: /srv/log/{{ server }}/strt-monit
+          state: directory
+          mode: '0755'
+
+    - name: remove service run empty directories
+      command: find /srv/run -empty -type d -delete
+
+    - name: ensure /srv/run/strt-monit exists
+      file:
+          path: /srv/run/strt-monit
+          state: directory
+          mode: '0755'
+
+    - name: crontab strt monit
+      cron:
+          name: strt monit
+          minute: '*/2'
+          job: /usr/local/sbin/strt-monit >>/srv/log/{{ server }}/strt-monit/`date +"\%Y\%m\%d.log"` 2>&1
+
+    - name: install motd
+      template:
+          dest: /etc/motd
+          src: motd.j2
+          owner: root
+          group: root
+          mode: '0644'
+
+    - name: clean-up /srv/run/ansible-managed-services/current
+      file:
+          dest: /srv/run/ansible-managed-services/current
+          state: absent
+
+    - name: ensure /srv/run/ansible-managed-services directories exist
+      file:
+          dest: /srv/run/ansible-managed-services/{{ item }}
+          state: directory
+          mode: '0755'
+      loop:
+          - active
+          - current
+
+    - name: update active ansible-managed-services
+      copy:
+          dest: /srv/run/ansible-managed-services/{{ item[1] }}/{{ item[0] }}
+          owner: root
+          group: root
+          content: ''
+          mode: 644
+      loop: "{{ services | product(['active', 'current']) | list }}"
+      when: services is defined
+      notify:
+          - ansible finalize
+
+    - name: update hosts file
+      blockinfile:
+          path: /etc/hosts
+          marker: '# {mark} ANSIBLE MANAGED BLOCK {{ item.ip }}'
+          block: |
+              {{ item.ip }} {{ item.name }}
+      with_items: '{{ etc_hosts }}'
+      when: etc_hosts is defined
+
+    - name: set hostname
+      copy:
+          dest: /etc/hostname
+          owner: root
+          group: root
+          mode: 644
+          content: |
+              {{ server }}

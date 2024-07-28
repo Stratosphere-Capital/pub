@@ -1,0 +1,249 @@
+# Path to your oh-my-zsh installation.
+export ZSH="$HOME/.oh-my-zsh"
+
+# Set name of the theme to load.
+# Look in ~/.oh-my-zsh/themes/
+# Optionally, if you set this to "random", it'll load a random theme each
+# time that oh-my-zsh is loaded.
+ZSH_THEME="robbyrussell"
+
+# Uncomment the following line to use case-sensitive completion.
+# CASE_SENSITIVE="true"
+
+# Uncomment the following line to use hyphen-insensitive completion. Case
+# sensitive completion must be off. _ and - will be interchangeable.
+# HYPHEN_INSENSITIVE="true"
+
+# Uncomment the following line to disable bi-weekly auto-update checks.
+DISABLE_AUTO_UPDATE="true"
+
+# Uncomment the following line to change how often to auto-update (in days).
+# export UPDATE_ZSH_DAYS=13
+
+# Uncomment the following line to disable colors in ls.
+# DISABLE_LS_COLORS="true"
+
+# Uncomment the following line to disable auto-setting terminal title.
+# DISABLE_AUTO_TITLE="true"
+
+# Uncomment the following line to enable command auto-correction.
+# ENABLE_CORRECTION="true"
+
+# Uncomment the following line to display red dots whilst waiting for completion.
+# COMPLETION_WAITING_DOTS="true"
+
+# Uncomment the following line if you want to disable marking untracked files
+# under VCS as dirty. This makes repository status check for large repositories
+# much, much faster.
+# DISABLE_UNTRACKED_FILES_DIRTY="true"
+
+# Uncomment the following line if you want to change the command execution time
+# stamp shown in the history command output.
+# The optional three formats: "mm/dd/yyyy"|"dd.mm.yyyy"|"yyyy-mm-dd"
+HIST_STAMPS="yyyy-mm-dd"
+
+# Would you like to use another custom folder than $ZSH/custom?
+# ZSH_CUSTOM=/path/to/new-custom-folder
+
+# Which plugins would you like to load? (plugins can be found in ~/.oh-my-zsh/plugins/*)
+# Custom plugins may be added to ~/.oh-my-zsh/custom/plugins/
+# Example format: plugins=(rails git textmate ruby lighthouse)
+# Add wisely, as too many plugins slow down shell startup.
+plugins=(git golang nmap cp colorize mosh)
+#plugins=(git go golang nmap cp colorize zsh-syntax-highlighting mosh)
+
+# User configuration
+
+export PATH=$HOME/bin:/usr/local/bin:$PATH
+# export MANPATH="/usr/local/man:$MANPATH"
+
+source $ZSH/oh-my-zsh.sh
+
+# You may need to manually set your language environment
+# export LANG=en_US.UTF-8
+
+# Preferred editor for local and remote sessions
+# if [[ -n $SSH_CONNECTION ]]; then
+#   export EDITOR='vim'
+# else
+#   export EDITOR='mvim'
+# fi
+
+# Compilation flags
+# export ARCHFLAGS="-arch x86_64"
+
+# ssh
+# export SSH_KEY_PATH="~/.ssh/dsa_id"
+
+# Set personal aliases, overriding those provided by oh-my-zsh libs,
+# plugins, and themes. Aliases can be placed here, though oh-my-zsh
+# users are encouraged to define aliases within the ZSH_CUSTOM folder.
+# For a full list of active aliases, run `alias`.
+#
+# Example aliases
+# alias zshconfig="mate ~/.zshrc"
+# alias ohmyzsh="mate ~/.oh-my-zsh"
+
+### CHKP part
+
+setopt histignoredups
+# shared history
+setopt inc_append_history
+setopt share_history
+
+# colorize manpages
+export LESS_TERMCAP_mb=$'\E[01;31m'
+export LESS_TERMCAP_md=$'\E[01;31m'
+export LESS_TERMCAP_me=$'\E[0m'
+export LESS_TERMCAP_se=$'\E[0m'
+export LESS_TERMCAP_so=$'\E[01;44;33m'
+export LESS_TERMCAP_ue=$'\E[0m'
+export LESS_TERMCAP_us=$'\E[01;32m'
+
+export HISTSIZE=100000
+export SAVEHIST=100000
+
+eval "`dircolors`"
+alias ls='ls --color=auto -h'
+alias ll='ls --color=auto -h -l'
+alias l='ls --color=auto -h -lA'
+alias grep='grep --colour=auto'
+alias dmesg='dmesg --color --ctime'
+
+alias ps_full='ps faxo user:15,pid,pcpu,pmem,vsz,rss,tty,stat,start,time,command'
+
+
+alias ..='cd ..'
+alias ...='cd ../..'
+
+
+# Some more alias to avoid making mistakes:
+alias rm='rm -I'
+alias cp='cp -i'
+alias mv='mv -i'
+
+
+alias ip='ip -color'
+alias ipsa='ip -stats -human a s'
+alias ipba='ip -brief a s'
+
+alias s='ssh'
+alias ms='mosh'
+
+# force en_US.UTF-8
+export LANG=en_US.UTF-8
+export LANGUAGE=
+export LC_CTYPE=en_US.UTF-8
+export LC_NUMERIC=en_US.UTF-8
+export LC_TIME=C.UTF-8
+export LC_COLLATE="en_US.UTF-8"
+export LC_MONETARY=en_US.UTF-8
+export LC_MESSAGES="en_US.UTF-8"
+export LC_PAPER=en_US.UTF-8
+export LC_NAME=en_US.UTF-8
+export LC_ADDRESS=en_US.UTF-8
+export LC_TELEPHONE=en_US.UTF-8
+export LC_MEASUREMENT=en_US.UTF-8
+export LC_IDENTIFICATION=en_US.UTF-8
+export LC_ALL=
+
+# editor
+export EDITOR='/usr/bin/vim'
+
+
+SERVER_IP=$(timeout 5 curl http://ipinfo.io/ip 2>/dev/null)
+
+
+#PS1=$'[%{$fg_bold[red]%}%n%{$reset_color%}@%{$fg_bold[green]%}%M%{$reset_color%}%{$fg_bold[red]%}(A)%{$reset_color%} %{$fg_bold[blue]%}%d%{$reset_color%}]%# '
+PS1=$'[%{$fg_bold[red]%}%n%{$reset_color%}@%{$fg_bold[green]%}%M%{$reset_color%} %{$fg_bold[blue]%}%d%{$reset_color%}]%# '
+
+
+function ip2org() {
+
+ip=$1
+
+rev_ip=`echo $ip | awk -F. '{print $4"."$3"." $2"."$1}'`
+AS=`dig +short TXT $rev_ip.origin.asn.cymru.com | awk '{print $1}' | tr -d "\"" `
+AS_ORG=`dig +short TXT AS${AS}.asn.cymru.com |  awk -F "|" '{print $NF}' | tr -d "\"" `
+
+echo "AS Number: AS$AS"
+echo "AS ORG: $AS_ORG"
+
+}
+
+
+runmtr6(){
+#echo $@
+
+   if [ "$1" -eq 0 ] 2>/dev/null
+   then
+    S_IP=$(curl http://ipinfo.io/ip 2>/dev/null)
+
+   else
+    S_IP=$1
+  fi
+
+D_IP_R=$(echo $2 | awk -F: 'BEGIN {OFS=""; }{addCount = 9 - NF; for(i=1; i<=NF;i++){if(length($i) == 0){ for(j=1;j<=addCount;j++){$i = ($i "0000");} } else { $i = substr(("0000" $i), length($i)+5-4);}}; print}' | rev | sed -e "s/./&./g")
+S_IP_R=$(echo $S_IP | awk -F: 'BEGIN {OFS=""; }{addCount = 9 - NF; for(i=1; i<=NF;i++){if(length($i) == 0){ for(j=1;j<=addCount;j++){$i = ($i "0000");} } else { $i = substr(("0000" $i), length($i)+5-4);}}; print}' | rev | sed -e "s/./&./g")
+D_AS=$(dig TXT ${D_IP_R}origin6.asn.cymru.com +short | tail -1 | awk '{ print $1 }' | sed 's/\"//g')
+S_AS=$(dig TXT ${S_IP_R}origin6.asn.cymru.com +short | tail -1 | awk '{ print $1 }' | sed 's/\"//g')
+
+
+echo "DST IP: $2 (AS${D_AS})"
+echo "SRC IP: $S_IP (AS${S_AS})"
+
+echo "=========="
+mtr -6 --report --aslookup --report-wide --address $S_IP $@
+#echo "mtr --report --aslookup --report-wide --address $S_IP $2 $3"
+echo "=========="
+mtr -6 --report --aslookup --no-dns --address $S_IP $@
+
+}
+
+runmtr(){
+#echo $@
+
+   if [ "$1" -eq 0 ] 2>/dev/null
+   then
+    S_IP=$(curl http://ipinfo.io/ip 2>/dev/null)
+
+   else
+    S_IP=$1
+  fi
+
+D_IP_R=$(echo $2 | awk -F '.' '{ print $4"."$3"."$2"."$1 }')
+S_IP_R=$(echo $S_IP | awk -F '.' '{ print $4"."$3"."$2"."$1 }')
+D_AS=$(dig TXT $D_IP_R.origin.asn.cymru.com +short | tail -1 | awk '{ print $1 }' | sed 's/\"//g')
+S_AS=$(dig TXT $S_IP_R.origin.asn.cymru.com +short | tail -1 | awk '{ print $1 }' | sed 's/\"//g')
+
+
+echo "DST IP: $2 (AS${D_AS})"
+echo "SRC IP: $S_IP (AS${S_AS})"
+
+echo "=========="
+mtr -4 --report --aslookup --report-wide --address $S_IP $@
+echo "=========="
+mtr -4 --report --aslookup --no-dns --address $S_IP $@
+
+}
+alias mtr-report='runmtr 0'
+
+
+# enable iterm integration for iterm users, you need to change your's .ssh/config by adding something like this:
+#Host *
+  #SendEnv ITERM_PROFILE
+if [ "$ITERM_PROFILE" ]; then
+source ~/.iterm2_shell_integration.zsh
+fi
+
+# word jumping on mac
+bindkey '[C' forward-word
+bindkey '[D' backward-word
+
+alias sudo='sudo '
+
+bindkey  "^[[1~"   beginning-of-line
+bindkey  "^[[4~"   end-of-line
+
+alias grepa='grep --line-buffered -E -a '
+alias lsblkz='lsblk --output NAME,FSTYPE,UUID,SERIAL,MODEL,STATE,TYPE,SIZE,MOUNTPOINT'

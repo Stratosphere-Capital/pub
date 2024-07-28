@@ -1,0 +1,19 @@
+UsePAM yes
+X11Forwarding no
+PrintMotd no
+AcceptEnv LANG LC_*
+UseDNS no
+AddressFamily inet
+SyslogFacility AUTHPRIV
+PermitRootLogin no
+PasswordAuthentication no
+MaxAuthTries 2
+AuthorizedKeysFile .ssh/authorized_keys
+AllowAgentForwarding yes
+{% if security == 'production' %}
+AllowTcpForwarding no
+AllowUsers {{ production_users | join(" ") }}
+AuthenticationMethods publickey,keyboard-interactive
+{% else %}
+Subsystem	sftp	/usr/lib/openssh/sftp-server
+{% endif %}

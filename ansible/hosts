@@ -1,0 +1,2 @@
+[stratosphere]
+tok2.stratosphere.capital ansible_become=yes ansible_become_user=root

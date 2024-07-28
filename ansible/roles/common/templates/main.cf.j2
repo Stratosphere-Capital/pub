@@ -1,0 +1,75 @@
+# General
+
+inet_interfaces = 127.0.0.1
+smtpd_banner = $myhostname ESMTP $mail_name
+
+# Flow & Queues
+
+in_flow_delay = 10s
+message_size_limit = 200000
+mailbox_size_limit = 500000000
+minimal_backoff_time = 20m
+default_process_limit = 2
+
+# Misc
+
+myhostname = {{inventory_hostname}}
+alias_maps = hash:/etc/aliases
+alias_database = $alias_maps
+local_recipient_maps = $alias_maps
+unknown_local_recipient_reject_code = 550
+recipient_delimiter = +
+propagate_unmatched_extensions = canonical, alias
+mailbox_command = /usr/bin/procmail -a "$EXTENSION"
+local_destination_concurrency_limit = 1
+default_destination_concurrency_limit = 2
+
+strict_rfc821_envelopes = yes
+disable_vrfy_command = yes
+
+# Mail from the internet
+
+smtpd_helo_required = yes
+smtpd_client_restrictions =
+    sleep 20,
+    reject_rbl_client zen.spamhaus.org,
+    reject_rbl_client blackholes.easynet.nl,
+    reject_rbl_client block.dnsbl.sorbs.net,
+    reject_rhsbl_client nomail.rhsbl.sorbs.net
+smtpd_helo_restrictions =
+    reject_invalid_helo_hostname,
+    reject_non_fqdn_helo_hostname,
+    reject_rhsbl_helo nomail.rhsbl.sorbs.net
+smtpd_sender_restrictions =
+    reject_non_fqdn_sender,
+    reject_unknown_sender_domain
+smtpd_data_restrictions =
+    reject_unauth_pipelining
+smtpd_recipient_restrictions=
+    reject_non_fqdn_recipient,
+    reject_unknown_recipient_domain,
+    reject_rhsbl_recipient nomail.rhsbl.sorbs.net,
+    reject_unauth_destination
+smtpd_delay_reject = yes
+
+# TLS
+
+smtpd_tls_cert_file = /etc/ssl/certs/ssl-cert-snakeoil.pem
+smtpd_tls_key_file = /etc/ssl/private/ssl-cert-snakeoil.key
+smtpd_use_tls = yes
+smtpd_tls_session_cache_database = btree:${data_directory}/smtpd_scache
+smtp_tls_session_cache_database = btree:${data_directory}/smtp_scache
+smtpd_tls_security_level = encrypt
+smtpd_tls_loglevel = 2
+
+# Mail Routing
+
+smtpd_relay_restrictions = permit_mynetworks defer_unauth_destination
+mynetworks_style = subnet
+relay_domains = $mydestination
+mydestination = $myhostname, localhost.$mydomain, , localhost
+mynetworks = 127.0.0.0/8 [::ffff:127.0.0.0]/104 [::1]/128
+
+# Safeguards
+
+compatibility_level = 2
