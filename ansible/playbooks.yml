@@ -8,4 +8,4 @@
           - {role: sync-pubkeys, tags: [sync-pubkeys]}
           - {role: docker-service, tags: [docker-service]}
           - {role: docker-cron, tags: [docker-cron]}
-          - {role: rsyslog, tags: [rsyslog]}
+          # - {role: rsyslog, tags: [rsyslog]}
