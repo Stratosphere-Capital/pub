@@ -167,11 +167,11 @@
 
     - name: add global known_hosts
       copy:
-        src: known_hosts
-        dest: /etc/ssh/ssh_known_hosts
-        owner: root
-        group: root
-        mode: 644
+          src: known_hosts
+          dest: /etc/ssh/ssh_known_hosts
+          owner: root
+          group: root
+          mode: 644
 
     - name: include mta
       import_tasks: mta.yml
